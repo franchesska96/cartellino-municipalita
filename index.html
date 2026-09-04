@@ -82,12 +82,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC0RBWF_exKybPr6N4w9HRR31-bFO18Mws",
-  authDomain: "progetto-filippide-2026-2027.firebaseapp.com",
-  projectId: "progetto-filippide-2026-2027",
-  storageBucket: "progetto-filippide-2026-2027.firebasestorage.app",
-  messagingSenderId: "860128374882",
-  appId: "1:860128374882:web:abd71f8386d7433a1e213b"
+  apiKey: "AIzaSyCWmVIHgM1Y0QPOM1nPOoqmULUkw2KVP0w",
+  authDomain: "municipalita-94cfc.firebaseapp.com",
+  projectId: "municipalita-94cfc",
+  storageBucket: "municipalita-94cfc.firebasestorage.app",
+  messagingSenderId: "1067108195137",
+  appId: "1:1067108195137:web:4bc8d9ca459dfc2edbdfc0"
 };
 const OWNER_EMAIL = "amministrazionefilippide@gmail.com";
 
@@ -105,9 +105,7 @@ function downloadExcel(filename, sheetName, aoa){
 }
 
 const SITES = [
-  { name: "Foro Italico", lat: 41.9311, lon: 12.4564, radius: 250 },
-  { name: "Stadio Paolo Rosi", lat: 41.9341, lon: 12.4893, radius: 200 },
-  { name: "Centro Paralimpico Tre Fontane", lat: 41.8344, lon: 12.4832, radius: 250 }
+  { name: "Parco delle Valli", lat: 41.9396, lon: 12.5275, radius: 400 }
 ];
 
 let currentUser = null;
@@ -138,8 +136,11 @@ function monthLabelIt(){ const d=new Date(); return d.toLocaleDateString("it-IT"
 function todayKey(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function monthKeyNow(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function isWithinShift(d){
+  const day = d.getDay(); // 0=domenica ... 2=martedì, 3=mercoledì, 5=venerdì
   const t = d.getHours() + d.getMinutes()/60;
-  return (t >= 9.25 && t <= 13.25) || (t >= 14 && t <= 17.5);
+  if(day === 2 || day === 5) return t >= 14.25 && t <= 16.25;
+  if(day === 3) return t >= 15 && t <= 16.5;
+  return false;
 }
 function daysInMonth(monthKey){
   const [y,m] = monthKey.split("-").map(Number);
