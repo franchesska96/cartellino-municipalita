@@ -82,12 +82,12 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCWmVIHgM1Y0QPOM1nPOoqmULUkw2KVP0w",
-  authDomain: "municipalita-94cfc.firebaseapp.com",
-  projectId: "municipalita-94cfc",
-  storageBucket: "municipalita-94cfc.firebasestorage.app",
-  messagingSenderId: "1067108195137",
-  appId: "1:1067108195137:web:4bc8d9ca459dfc2edbdfc0"
+  apiKey: "AIzaSyC0RBWF_exKybPr6N4w9HRR31-bFO18Mws",
+  authDomain: "progetto-filippide-2026-2027.firebaseapp.com",
+  projectId: "progetto-filippide-2026-2027",
+  storageBucket: "progetto-filippide-2026-2027.firebasestorage.app",
+  messagingSenderId: "860128374882",
+  appId: "1:860128374882:web:abd71f8386d7433a1e213b"
 };
 const OWNER_EMAIL = "amministrazionefilippide@gmail.com";
 
@@ -105,7 +105,9 @@ function downloadExcel(filename, sheetName, aoa){
 }
 
 const SITES = [
-  { name: "Parco delle Valli", lat: 41.9396, lon: 12.5275, radius: 400 }
+  { name: "Foro Italico", lat: 41.9311, lon: 12.4564, radius: 250 },
+  { name: "Stadio Paolo Rosi", lat: 41.9341, lon: 12.4893, radius: 200 },
+  { name: "Centro Paralimpico Tre Fontane", lat: 41.8344, lon: 12.4832, radius: 250 }
 ];
 
 let currentUser = null;
@@ -136,11 +138,8 @@ function monthLabelIt(){ const d=new Date(); return d.toLocaleDateString("it-IT"
 function todayKey(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
 function monthKeyNow(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
 function isWithinShift(d){
-  const day = d.getDay(); // 0=domenica ... 2=martedì, 3=mercoledì, 5=venerdì
   const t = d.getHours() + d.getMinutes()/60;
-  if(day === 2 || day === 5) return t >= 14.25 && t <= 16.25;
-  if(day === 3) return t >= 15 && t <= 16.5;
-  return false;
+  return (t >= 9.25 && t <= 13.25) || (t >= 14 && t <= 17.5);
 }
 function daysInMonth(monthKey){
   const [y,m] = monthKey.split("-").map(Number);
@@ -184,6 +183,10 @@ function doClockToggle(emp, onDone){
       fields.hoursMonth = +(baseMonth + hoursWorked).toFixed(1);
       fields.dayKey = dKey; fields.monthKey = mKey;
       fields.working = false; fields.since = null; fields.location = null; fields.inRange = null; fields.approval = null; fields.withinShift = null;
+      const logDayNum = now.getDate();
+      let log = emp.monthKey===mKey ? Object.assign({}, emp.dailyHoursLog||{}) : {};
+      log[logDayNum] = +((log[logDayNum]||0) + hoursWorked).toFixed(2);
+      fields.dailyHoursLog = log;
     } else {
       const d = new Date();
       fields.working = true;
@@ -350,15 +353,21 @@ function renderEmployeeArchive(){
       <div class="card" style="margin-top:16px; border-color:var(--amber-deep);">
         <p style="font-weight:600; margin:0 0 4px; text-transform:capitalize;">Riepilogo ${monthKeyLabelIt(r.monthKey)}</p>
         <p style="font-size:13px; color:var(--muted); margin:0 0 12px;">${fmtOre(r.hours)} · €${fmtEuro2(r.rate)}/h · totale ${fmtEuro(r.cost)}</p>
-        <button data-action="confirm-archive" data-id="${r.id}" style="width:100%; height:40px; background:var(--ink); color:var(--paper); font-weight:600;">${iconSvg('check',14)} Confermo questo riepilogo</button>
+        <button data-action="download-timesheet" data-id="${r.id}" style="width:100%; height:36px; font-weight:600; font-size:13px; margin-bottom:10px;">${iconSvg('pdf',13)} Scarica il mio resoconto Excel</button>
+        <label class="field-label">Firma (scrivi il tuo nome per confermare)</label>
+        <input type="text" id="signature-${r.id}" placeholder="Nome Cognome" value="${myEmployee ? myEmployee.name : ''}" style="margin-bottom:10px;">
+        <button data-action="confirm-archive" data-id="${r.id}" style="width:100%; height:40px; background:var(--ink); color:var(--paper); font-weight:600;">${iconSvg('check',14)} Confermo e firmo</button>
       </div>`).join("")}
     ${confirmed.length>0 ? `
       <p class="eyebrow" style="margin-top:18px;">Mesi confermati</p>
       <div class="card">
         ${confirmed.map(r=>`
-          <div class="emp-row" style="display:flex; justify-content:space-between; align-items:center; text-transform:capitalize;">
-            <span style="font-size:13px;">${monthKeyLabelIt(r.monthKey)}</span>
-            <span style="font-size:13px; color:var(--muted);">${fmtOre(r.hours)} · ${fmtEuro(r.cost)}</span>
+          <div class="emp-row" style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:13px; text-transform:capitalize;">${monthKeyLabelIt(r.monthKey)}</span>
+            <span style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:13px; color:var(--muted);">${fmtOre(r.hours)} · ${fmtEuro(r.cost)}</span>
+              <button class="iconbtn" data-action="download-timesheet" data-id="${r.id}">${iconSvg('pdf',13)}</button>
+            </span>
           </div>`).join("")}
       </div>` : ""}
   `;
@@ -624,15 +633,73 @@ function renderArchiveOwner(){
               <span style="color:var(--muted);">${fmtOre(r.hours)}</span>
               <span style="font-family:var(--font-mono); font-weight:600;">${fmtEuro(r.cost)}</span>
               ${r.confirmed ? `<span class="pill pill-success">${iconSvg('check',10)}</span>` : `<span class="pill pill-warn">in attesa</span>`}
+              <button class="iconbtn" data-action="download-timesheet" data-id="${r.id}">${iconSvg('pdf',12)}</button>
             </span>
           </div>`).join("")}
         <div style="display:flex; justify-content:space-between; padding:10px 0 4px; font-weight:600;">
           <span>Totale</span><span style="font-family:var(--font-mono);">${fmtEuro(total)}</span>
         </div>
-        <button data-action="download-archive" data-month="${mk}" style="width:100%; height:38px; font-weight:600; font-size:13px; margin-top:8px;">${iconSvg('pdf',14)} Scarica Excel</button>
+        <button data-action="download-archive" data-month="${mk}" style="width:100%; height:38px; font-weight:600; font-size:13px; margin-top:8px;">${iconSvg('pdf',14)} Scarica riepilogo Excel</button>
       </div>`;
     }).join("")}
   </div>`;
+}
+
+function buildTimesheetWorkbook(record){
+  if(!window.XLSX){ showToast("Impossibile generare il file Excel in questo momento."); return null; }
+  const [y,m] = record.monthKey.split("-").map(Number);
+  const startDate = new Date(y, m-1, 1);
+  const endDate = new Date(y, m, 0);
+  const fmtD = d => String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
+
+  const aoa = Array.from({length:27}, ()=> new Array(7).fill(""));
+  aoa[0][3] = "AUTISMO IN CORSA";
+  aoa[0][5] = "PROGETTO FILIPPIDE";
+  aoa[3][0] = "data inizio"; aoa[3][1] = "data fine";
+  aoa[4][0] = fmtD(startDate); aoa[4][1] = fmtD(endDate);
+  aoa[6][4] = "collaboratore sportivo";
+  aoa[8][0] = ".";
+  aoa[8][4] = "Teacher/Trainer/Reseacher/Youth worker";
+  aoa[9][4] = record.employeeName || "";
+  aoa[10] = ["Data","ore","compenso ora","Totale","","",""];
+
+  const log = record.dailyHoursLog || {};
+  const days = Object.keys(log).map(Number).sort((a,b)=>a-b);
+  days.slice(0,10).forEach((day,i)=>{
+    const hours = log[day];
+    aoa[11+i][0] = fmtD(new Date(y, m-1, day));
+    aoa[11+i][1] = hours;
+    aoa[11+i][2] = record.rate;
+    aoa[11+i][3] = +(hours*(record.rate||0)).toFixed(2);
+  });
+
+  aoa[22][0] = "TOTALE";
+  aoa[24][0] = "FIRMA";
+  aoa[25][0] = record.signature || "";
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws["!merges"] = [
+    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}},
+    {s:{r:4,c:1},e:{r:4,c:2}},
+    {s:{r:6,c:0},e:{r:7,c:0}}, {s:{r:6,c:1},e:{r:7,c:3}}, {s:{r:6,c:4},e:{r:7,c:5}}, {s:{r:6,c:6},e:{r:7,c:6}},
+    {s:{r:8,c:1},e:{r:8,c:3}}, {s:{r:8,c:4},e:{r:8,c:5}},
+    {s:{r:9,c:1},e:{r:9,c:3}}, {s:{r:9,c:4},e:{r:9,c:5}},
+    {s:{r:10,c:4},e:{r:10,c:6}}, {s:{r:21,c:4},e:{r:21,c:6}},
+    {s:{r:24,c:0},e:{r:24,c:3}}, {s:{r:25,c:0},e:{r:25,c:3}}, {s:{r:26,c:0},e:{r:26,c:3}}
+  ];
+  ws["B23"] = { t:"n", f:"SUM(B12:B22)" };
+  ws["D23"] = { t:"n", f:"SUM(D12:D21)" };
+  ws["!cols"] = [{wch:14},{wch:10},{wch:14},{wch:12},{wch:14},{wch:12},{wch:10}];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
+  return wb;
+}
+function downloadTimesheet(record){
+  const wb = buildTimesheetWorkbook(record);
+  if(!wb) return;
+  const safeName = (record.employeeName||"dipendente").replace(/[^\p{L}\p{N}]+/gu,"_");
+  XLSX.writeFile(wb, "timesheet_" + safeName + "_" + record.monthKey + ".xlsx");
 }
 
 function exportArchiveMonthExcel(monthKey){
@@ -668,7 +735,7 @@ function wireAuthEvents(){
         if(email.toLowerCase() !== OWNER_EMAIL.toLowerCase()){
           await setDoc(doc(db,"employees",cred.user.uid), {
             name, email, rate:0, working:false, since:null, location:null,
-            inRange:null, approval:null, hoursToday:0, hoursMonth:0, dayKey:"", monthKey:"", daysWorkedThisMonth:[]
+            inRange:null, approval:null, hoursToday:0, hoursMonth:0, dayKey:"", monthKey:"", daysWorkedThisMonth:[], dailyHoursLog:{}
           });
         }
       } else {
@@ -705,10 +772,18 @@ function wireAppEvents(){
       doClockToggle(myEmployee, ()=>{});
     };
     document.querySelectorAll('[data-action="confirm-archive"]').forEach(b=>b.onclick=async()=>{
+      const id = b.dataset.id;
+      const sigInput = document.getElementById("signature-"+id);
+      const signature = sigInput ? sigInput.value.trim() : "";
+      if(!signature){ showToast("Scrivi il tuo nome nel campo firma prima di confermare."); return; }
       b.disabled = true;
       try{
-        await updateDoc(doc(db,"monthlyRecords",b.dataset.id), { confirmed:true, confirmedAt: new Date().toISOString() });
+        await updateDoc(doc(db,"monthlyRecords",id), { confirmed:true, confirmedAt: new Date().toISOString(), signature });
       }catch(err){ console.error(err); b.disabled=false; }
+    });
+    document.querySelectorAll('[data-action="download-timesheet"]').forEach(b=>b.onclick=()=>{
+      const rec = archive.find(a=>a.id===b.dataset.id);
+      if(rec) downloadTimesheet(rec);
     });
     return;
   }
@@ -778,12 +853,14 @@ function wireAppEvents(){
       for(const e of employees){
         const hours = e.monthKey===mk ? (e.hoursMonth||0) : 0;
         const rate = e.rate||0;
+        const dailyHoursLog = e.monthKey===mk ? (e.dailyHoursLog||{}) : {};
         const existing = archive.find(a=>a.monthKey===mk && a.employeeId===e.id);
         await setDoc(doc(db,"monthlyRecords", mk+"_"+e.id), {
           employeeId: e.id, employeeName: e.name, monthKey: mk,
-          hours, rate, cost: +(hours*rate).toFixed(2),
+          hours, rate, cost: +(hours*rate).toFixed(2), dailyHoursLog,
           confirmed: existing ? existing.confirmed : false,
-          confirmedAt: existing ? existing.confirmedAt : null
+          confirmedAt: existing ? existing.confirmedAt : null,
+          signature: existing ? (existing.signature||null) : null
         });
       }
       showToast("Mese archiviato correttamente.");
@@ -793,6 +870,10 @@ function wireAppEvents(){
 
   document.querySelectorAll('[data-action="download-archive"]').forEach(b=>b.onclick=()=>{
     exportArchiveMonthExcel(b.dataset.month);
+  });
+  document.querySelectorAll('[data-action="download-timesheet"]').forEach(b=>b.onclick=()=>{
+    const rec = archive.find(a=>a.id===b.dataset.id);
+    if(rec) downloadTimesheet(rec);
   });
 
   const permitSubmit = document.getElementById("permit-submit");
