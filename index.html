@@ -646,57 +646,106 @@ function renderArchiveOwner(){
   </div>`;
 }
 
-let timesheetTemplateCache = null;
-async function loadTimesheetTemplate(){
-  if(timesheetTemplateCache) return timesheetTemplateCache;
-  const resp = await fetch("timesheet_template.xlsx");
-  if(!resp.ok) throw new Error("Modello non trovato");
-  const buf = await resp.arrayBuffer();
-  timesheetTemplateCache = buf;
-  return buf;
+const TS_BLUE = "B8CCE4";
+const TS_LIGHTBLUE = "DAEEF3";
+const TS_MED = "medium", TS_THIN = "thin";
+function tsBorder(top,right,bottom,left){
+  const b = {};
+  if(top) b.top = { style: top };
+  if(right) b.right = { style: right };
+  if(bottom) b.bottom = { style: bottom };
+  if(left) b.left = { style: left };
+  return b;
+}
+function tsFont(size, bold){ return { name:"Arial", sz:size||12, bold: !!bold }; }
+function tsCell(value, type, style){
+  return Object.assign({ v: value===undefined?"":value, t: type||"s" }, style ? { s: style } : {});
 }
 
-async function buildTimesheetWorkbook(record){
+function buildTimesheetWorkbook(record){
   if(!window.XLSX){ showToast("Impossibile generare il file Excel in questo momento."); return null; }
-  let buf;
-  try{ buf = await loadTimesheetTemplate(); }
-  catch(e){ showToast("Impossibile trovare il modello timesheet_template.xlsx sul sito."); return null; }
-
-  const wb = XLSX.read(buf, { type:"array", cellStyles:true, cellDates:true, cellNF:true });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-
   const [y,m] = record.monthKey.split("-").map(Number);
   const startDate = new Date(y, m-1, 1);
   const endDate = new Date(y, m, 0);
+  const centerC = { horizontal:"center", vertical:"center" };
+  const centerCWrap = { horizontal:"center", vertical:"center", wrapText:true };
 
-  function setVal(addr, value, type){
-    if(!ws[addr]) ws[addr] = { t:"s" };
-    ws[addr].v = value;
-    if(type) ws[addr].t = type;
-    delete ws[addr].w; // forza il ricalcolo del testo visualizzato dal nuovo valore
-  }
+  const ws = {};
+  const set = (addr, cell) => { ws[addr] = cell; };
 
-  setVal("A5", startDate, "d");
-  setVal("B5", endDate, "d");
-  setVal("E10", record.employeeName || "", "s");
+  // titolo
+  set("A1", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_THIN,TS_MED) }));
+  set("D1", tsCell("AUTISMO IN CORSA", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(20,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_THIN,TS_MED) }));
+  set("F1", tsCell("PROGETTO FILIPPIDE", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
+  set("A3", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}} }));
+  set("G3", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, border:tsBorder(null,TS_MED,null,null) }));
 
+  // date inizio/fine
+  set("A4", tsCell("data inizio", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
+  set("B4", tsCell("data fine", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED) }));
+  set("A5", tsCell(startDate, "d", { font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" }));
+  set("B5", tsCell(endDate, "d", { font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED), numFmt:"d/m/yyyy" }));
+
+  // collaboratore sportivo / trainer
+  set("A7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,null,TS_MED) }));
+  set("B7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,null,null,TS_MED) }));
+  set("E7", tsCell("collaboratore sportivo", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_THIN,TS_MED,TS_THIN) }));
+  set("G7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(null,TS_MED,null,null) }));
+  set("A9", tsCell(".", "s", { font:tsFont(12), border:tsBorder(TS_MED,TS_MED,TS_MED,null) }));
+  set("E9", tsCell("Teacher/Trainer/Reseacher/Youth worker", "s", { font:tsFont(10,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_THIN) }));
+  set("A10", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}} }));
+  set("E10", tsCell(record.employeeName||"", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), alignment:centerC, border:tsBorder(null,TS_MED,TS_MED,TS_MED) }));
+
+  // intestazione tabella
+  set("A11", tsCell("Data", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED) }));
+  set("B11", tsCell("ore", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,null,null) }));
+  set("C11", tsCell("compenso ora", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,null) }));
+  set("D11", tsCell("Totale", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
+
+  // righe tabella (12-21)
   const log = record.dailyHoursLog || {};
   const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,10);
-  days.forEach((day,i)=>{
-    const r = 12 + i;
-    const hours = log[day];
-    setVal("A"+r, new Date(y, m-1, day), "d");
-    setVal("B"+r, hours, "n");
-    setVal("C"+r, record.rate||0, "n");
-    setVal("D"+r, +(hours*(record.rate||0)).toFixed(2), "n");
-  });
+  for(let i=0;i<10;i++){
+    const r = 12+i;
+    const day = days[i];
+    const hours = day!==undefined ? log[day] : undefined;
+    const dateVal = day!==undefined ? new Date(y, m-1, day) : undefined;
+    const total = day!==undefined ? +(hours*(record.rate||0)).toFixed(2) : undefined;
+    set("A"+r, tsCell(dateVal, dateVal?"d":"s", { font:tsFont(12), alignment:{horizontal:"left",vertical:"center"}, border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_MED), numFmt:"d/m/yyyy" }));
+    set("B"+r, tsCell(hours, hours!==undefined?"n":"s", { font:tsFont(12), border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_THIN) }));
+    set("C"+r, tsCell(day!==undefined?(record.rate||0):undefined, day!==undefined?"n":"s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_THIN), numFmt:"0.00" }));
+    set("D"+r, tsCell(total, total!==undefined?"n":"s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(TS_THIN,TS_MED,TS_THIN,TS_THIN), numFmt:"0.00" }));
+  }
 
-  if(record.signature) setVal("A26", record.signature, "s");
+  // totale
+  set("A23", tsCell("TOTALE", "s", { font:tsFont(12,true), border:tsBorder(null,null,TS_MED,null) }));
+  set("B23", { t:"n", f:"SUM(B12:B21)", s:{ font:tsFont(12,true) } });
+  set("D23", { t:"n", f:"SUM(D12:D21)", s:{ font:tsFont(12,true), numFmt:"0.00" } });
 
+  // firma
+  set("A25", tsCell("FIRMA", "s", { font:tsFont(16,true), alignment:{horizontal:"center"}, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
+  set("A26", tsCell(record.signature||"", "s", { font:tsFont(14), alignment:{horizontal:"center",vertical:"center"}, border:tsBorder(TS_MED,TS_MED,null,TS_MED) }));
+  set("A27", tsCell("", "s", { border:tsBorder(null,TS_MED,TS_MED,TS_MED) }));
+
+  ws["!merges"] = [
+    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}},
+    {s:{r:3,c:1},e:{r:3,c:2}},
+    {s:{r:6,c:0},e:{r:7,c:0}}, {s:{r:6,c:1},e:{r:7,c:3}}, {s:{r:6,c:4},e:{r:7,c:5}}, {s:{r:6,c:6},e:{r:7,c:6}},
+    {s:{r:8,c:1},e:{r:8,c:3}}, {s:{r:8,c:4},e:{r:8,c:5}},
+    {s:{r:9,c:1},e:{r:9,c:3}}, {s:{r:9,c:4},e:{r:9,c:5}},
+    {s:{r:10,c:4},e:{r:10,c:6}}, {s:{r:21,c:4},e:{r:21,c:6}},
+    {s:{r:24,c:0},e:{r:24,c:3}}, {s:{r:25,c:0},e:{r:25,c:3}}, {s:{r:26,c:0},e:{r:26,c:3}}
+  ];
+  ws["!cols"] = [{wch:17},{wch:11},{wch:16},{wch:12},{wch:23},{wch:15},{wch:19}];
+  ws["!rows"] = [{hpt:45},{hpt:33},{hpt:17},{hpt:17},{hpt:17},{hpt:17},null,{hpt:17},{hpt:17},{hpt:26}];
+  ws["!ref"] = "A1:G27";
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
   return wb;
 }
-async function downloadTimesheet(record){
-  const wb = await buildTimesheetWorkbook(record);
+function downloadTimesheet(record){
+  const wb = buildTimesheetWorkbook(record);
   if(!wb) return;
   const safeName = (record.employeeName||"dipendente").replace(/[^\p{L}\p{N}]+/gu,"_");
   XLSX.writeFile(wb, "timesheet_" + safeName + "_" + record.monthKey + ".xlsx");
