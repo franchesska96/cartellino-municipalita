@@ -646,58 +646,57 @@ function renderArchiveOwner(){
   </div>`;
 }
 
-function buildTimesheetWorkbook(record){
+let timesheetTemplateCache = null;
+async function loadTimesheetTemplate(){
+  if(timesheetTemplateCache) return timesheetTemplateCache;
+  const resp = await fetch("timesheet_template.xlsx");
+  if(!resp.ok) throw new Error("Modello non trovato");
+  const buf = await resp.arrayBuffer();
+  timesheetTemplateCache = buf;
+  return buf;
+}
+
+async function buildTimesheetWorkbook(record){
   if(!window.XLSX){ showToast("Impossibile generare il file Excel in questo momento."); return null; }
+  let buf;
+  try{ buf = await loadTimesheetTemplate(); }
+  catch(e){ showToast("Impossibile trovare il modello timesheet_template.xlsx sul sito."); return null; }
+
+  const wb = XLSX.read(buf, { type:"array", cellStyles:true, cellDates:true, cellNF:true });
+  const ws = wb.Sheets[wb.SheetNames[0]];
+
   const [y,m] = record.monthKey.split("-").map(Number);
   const startDate = new Date(y, m-1, 1);
   const endDate = new Date(y, m, 0);
-  const fmtD = d => String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear();
 
-  const aoa = Array.from({length:27}, ()=> new Array(7).fill(""));
-  aoa[0][3] = "AUTISMO IN CORSA";
-  aoa[0][5] = "PROGETTO FILIPPIDE";
-  aoa[3][0] = "data inizio"; aoa[3][1] = "data fine";
-  aoa[4][0] = fmtD(startDate); aoa[4][1] = fmtD(endDate);
-  aoa[6][4] = "collaboratore sportivo";
-  aoa[8][0] = ".";
-  aoa[8][4] = "Teacher/Trainer/Reseacher/Youth worker";
-  aoa[9][4] = record.employeeName || "";
-  aoa[10] = ["Data","ore","compenso ora","Totale","","",""];
+  function setVal(addr, value, type){
+    if(!ws[addr]) ws[addr] = { t:"s" };
+    ws[addr].v = value;
+    if(type) ws[addr].t = type;
+    delete ws[addr].w; // forza il ricalcolo del testo visualizzato dal nuovo valore
+  }
+
+  setVal("A5", startDate, "d");
+  setVal("B5", endDate, "d");
+  setVal("E10", record.employeeName || "", "s");
 
   const log = record.dailyHoursLog || {};
-  const days = Object.keys(log).map(Number).sort((a,b)=>a-b);
-  days.slice(0,10).forEach((day,i)=>{
+  const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,10);
+  days.forEach((day,i)=>{
+    const r = 12 + i;
     const hours = log[day];
-    aoa[11+i][0] = fmtD(new Date(y, m-1, day));
-    aoa[11+i][1] = hours;
-    aoa[11+i][2] = record.rate;
-    aoa[11+i][3] = +(hours*(record.rate||0)).toFixed(2);
+    setVal("A"+r, new Date(y, m-1, day), "d");
+    setVal("B"+r, hours, "n");
+    setVal("C"+r, record.rate||0, "n");
+    setVal("D"+r, +(hours*(record.rate||0)).toFixed(2), "n");
   });
 
-  aoa[22][0] = "TOTALE";
-  aoa[24][0] = "FIRMA";
-  aoa[25][0] = record.signature || "";
+  if(record.signature) setVal("A26", record.signature, "s");
 
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  ws["!merges"] = [
-    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}},
-    {s:{r:4,c:1},e:{r:4,c:2}},
-    {s:{r:6,c:0},e:{r:7,c:0}}, {s:{r:6,c:1},e:{r:7,c:3}}, {s:{r:6,c:4},e:{r:7,c:5}}, {s:{r:6,c:6},e:{r:7,c:6}},
-    {s:{r:8,c:1},e:{r:8,c:3}}, {s:{r:8,c:4},e:{r:8,c:5}},
-    {s:{r:9,c:1},e:{r:9,c:3}}, {s:{r:9,c:4},e:{r:9,c:5}},
-    {s:{r:10,c:4},e:{r:10,c:6}}, {s:{r:21,c:4},e:{r:21,c:6}},
-    {s:{r:24,c:0},e:{r:24,c:3}}, {s:{r:25,c:0},e:{r:25,c:3}}, {s:{r:26,c:0},e:{r:26,c:3}}
-  ];
-  ws["B23"] = { t:"n", f:"SUM(B12:B22)" };
-  ws["D23"] = { t:"n", f:"SUM(D12:D21)" };
-  ws["!cols"] = [{wch:14},{wch:10},{wch:14},{wch:12},{wch:14},{wch:12},{wch:10}];
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
   return wb;
 }
-function downloadTimesheet(record){
-  const wb = buildTimesheetWorkbook(record);
+async function downloadTimesheet(record){
+  const wb = await buildTimesheetWorkbook(record);
   if(!wb) return;
   const safeName = (record.employeeName||"dipendente").replace(/[^\p{L}\p{N}]+/gu,"_");
   XLSX.writeFile(wb, "timesheet_" + safeName + "_" + record.monthKey + ".xlsx");
