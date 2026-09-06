@@ -649,17 +649,33 @@ function renderArchiveOwner(){
 const TS_BLUE = "B8CCE4";
 const TS_LIGHTBLUE = "DAEEF3";
 const TS_MED = "medium", TS_THIN = "thin";
-function tsBorder(top,right,bottom,left){
+function tsBorder(top,bottom,left,right){
   const b = {};
   if(top) b.top = { style: top };
-  if(right) b.right = { style: right };
   if(bottom) b.bottom = { style: bottom };
   if(left) b.left = { style: left };
+  if(right) b.right = { style: right };
   return b;
 }
 function tsFont(size, bold){ return { name:"Arial", sz:size||12, bold: !!bold }; }
 function tsCell(value, type, style){
   return Object.assign({ v: value===undefined?"":value, t: type||"s" }, style ? { s: style } : {});
+}
+// applica un bordo "a scatola" completo su un blocco rettangolare di celle (necessario perché
+// Excel richiede il bordo definito su ogni singola cella del blocco, non solo su quella in alto a sinistra)
+function tsBox(ws, r1,c1,r2,c2, extraStyle){
+  const cols = "ABCDEFG";
+  for(let r=r1;r<=r2;r++){
+    for(let c=c1;c<=c2;c++){
+      const top = r===r1 ? TS_MED : null;
+      const bottom = r===r2 ? TS_MED : null;
+      const left = c===c1 ? TS_MED : null;
+      const right = c===c2 ? TS_MED : null;
+      const addr = cols[c]+(r+1);
+      const style = Object.assign({}, extraStyle, { border: tsBorder(top,bottom,left,right) });
+      ws[addr] = { t:"s", v:"", s: style };
+    }
+  }
 }
 
 function buildTimesheetWorkbook(record){
@@ -669,75 +685,93 @@ function buildTimesheetWorkbook(record){
   const endDate = new Date(y, m, 0);
   const centerC = { horizontal:"center", vertical:"center" };
   const centerCWrap = { horizontal:"center", vertical:"center", wrapText:true };
-
   const ws = {};
-  const set = (addr, cell) => { ws[addr] = cell; };
 
-  // titolo
-  set("A1", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_THIN,TS_MED) }));
-  set("D1", tsCell("AUTISMO IN CORSA", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(20,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_THIN,TS_MED) }));
-  set("F1", tsCell("PROGETTO FILIPPIDE", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
-  set("A3", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}} }));
-  set("G3", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, border:tsBorder(null,TS_MED,null,null) }));
+  // scatole vuote (bordo + sfondo), poi sovrascrivo i valori sopra
+  tsBox(ws, 0,0,1,2, { fill:{fgColor:{rgb:TS_BLUE}} });                              // A1:C2
+  tsBox(ws, 0,3,1,4, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // D1:E2
+  tsBox(ws, 0,5,0,6, { fill:{fgColor:{rgb:TS_BLUE}} });                               // F1:G1
+  tsBox(ws, 1,5,1,6, {});                                                             // F2:G2
+  tsBox(ws, 3,0,3,0, { fill:{fgColor:{rgb:TS_BLUE}} });                               // A4
+  tsBox(ws, 3,1,3,2, { fill:{fgColor:{rgb:TS_BLUE}} });                               // B4:C4
+  tsBox(ws, 4,0,4,0, {});                                                             // A5
+  tsBox(ws, 4,1,4,2, {});                                                             // B5:C5
+  tsBox(ws, 6,0,7,0, { fill:{fgColor:{rgb:TS_BLUE}} });                               // A7:A8
+  tsBox(ws, 6,1,7,3, { fill:{fgColor:{rgb:TS_BLUE}} });                               // B7:D8
+  tsBox(ws, 6,4,7,5, { fill:{fgColor:{rgb:TS_BLUE}} });                               // E7:F8
+  tsBox(ws, 6,6,7,6, { fill:{fgColor:{rgb:TS_BLUE}} });                               // G7:G8
+  tsBox(ws, 8,0,8,0, {});                                                             // A9
+  tsBox(ws, 8,1,8,3, {});                                                             // B9:D9
+  tsBox(ws, 8,4,8,5, {});                                                             // E9:F9
+  tsBox(ws, 9,0,9,0, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // A10
+  tsBox(ws, 9,1,9,3, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // B10:D10
+  tsBox(ws, 9,4,9,5, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // E10:F10
+  tsBox(ws, 10,0,10,0, { fill:{fgColor:{rgb:TS_BLUE}} });                             // A11
+  tsBox(ws, 10,1,10,1, { fill:{fgColor:{rgb:TS_BLUE}} });                             // B11
+  tsBox(ws, 10,2,10,2, { fill:{fgColor:{rgb:TS_BLUE}} });                             // C11
+  tsBox(ws, 10,3,10,3, { fill:{fgColor:{rgb:TS_BLUE}} });                             // D11
+  tsBox(ws, 24,0,24,3, {});                                                           // A25:D25
+  tsBox(ws, 25,0,25,3, {});                                                           // A26:D26
+  tsBox(ws, 26,0,26,3, {});                                                           // A27:D27
 
-  // date inizio/fine
-  set("A4", tsCell("data inizio", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
-  set("B4", tsCell("data fine", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED) }));
-  set("A5", tsCell(startDate, "d", { font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" }));
-  set("B5", tsCell(endDate, "d", { font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED), numFmt:"d/m/yyyy" }));
-
-  // collaboratore sportivo / trainer
-  set("A7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,null,TS_MED) }));
-  set("B7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,null,null,TS_MED) }));
-  set("E7", tsCell("collaboratore sportivo", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_THIN,TS_MED,TS_THIN) }));
-  set("G7", tsCell("", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(null,TS_MED,null,null) }));
-  set("A9", tsCell(".", "s", { font:tsFont(12), border:tsBorder(TS_MED,TS_MED,TS_MED,null) }));
-  set("E9", tsCell("Teacher/Trainer/Reseacher/Youth worker", "s", { font:tsFont(10,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_THIN) }));
-  set("A10", tsCell("", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}} }));
-  set("E10", tsCell(record.employeeName||"", "s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), alignment:centerC, border:tsBorder(null,TS_MED,TS_MED,TS_MED) }));
-
-  // intestazione tabella
-  set("A11", tsCell("Data", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,TS_MED,TS_MED) }));
-  set("B11", tsCell("ore", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,null,null,null) }));
-  set("C11", tsCell("compenso ora", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,null) }));
-  set("D11", tsCell("Totale", "s", { fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
-
-  // righe tabella (12-21)
-  const log = record.dailyHoursLog || {};
-  const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,10);
-  for(let i=0;i<10;i++){
-    const r = 12+i;
-    const day = days[i];
-    const hours = day!==undefined ? log[day] : undefined;
-    const dateVal = day!==undefined ? new Date(y, m-1, day) : undefined;
-    const total = day!==undefined ? +(hours*(record.rate||0)).toFixed(2) : undefined;
-    set("A"+r, tsCell(dateVal, dateVal?"d":"s", { font:tsFont(12), alignment:{horizontal:"left",vertical:"center"}, border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_MED), numFmt:"d/m/yyyy" }));
-    set("B"+r, tsCell(hours, hours!==undefined?"n":"s", { font:tsFont(12), border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_THIN) }));
-    set("C"+r, tsCell(day!==undefined?(record.rate||0):undefined, day!==undefined?"n":"s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(TS_THIN,TS_THIN,TS_THIN,TS_THIN), numFmt:"0.00" }));
-    set("D"+r, tsCell(total, total!==undefined?"n":"s", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(TS_THIN,TS_MED,TS_THIN,TS_THIN), numFmt:"0.00" }));
+  // tabella ore (righe 12-21, colonne A-D): griglia sottile con perimetro esterno marcato
+  for(let r=11; r<=20; r++){
+    for(let c=0; c<=3; c++){
+      const top = r===11 ? TS_MED : TS_THIN;
+      const bottom = r===20 ? TS_MED : TS_THIN;
+      const left = c===0 ? TS_MED : TS_THIN;
+      const right = c===3 ? TS_MED : TS_THIN;
+      const cols = "ABCDEFG";
+      const addr = cols[c]+(r+1);
+      const fill = (c===2||c===3) ? { fill:{fgColor:{rgb:TS_LIGHTBLUE}} } : {};
+      ws[addr] = Object.assign({ t:"s", v:"" }, { s: Object.assign({}, fill, { font:tsFont(12), border:tsBorder(top,bottom,left,right) }) });
+    }
   }
 
-  // totale
-  set("A23", tsCell("TOTALE", "s", { font:tsFont(12,true), border:tsBorder(null,null,TS_MED,null) }));
-  set("B23", { t:"n", f:"SUM(B12:B21)", s:{ font:tsFont(12,true) } });
-  set("D23", { t:"n", f:"SUM(D12:D21)", s:{ font:tsFont(12,true), numFmt:"0.00" } });
+  // contenuti
+  ws["D1"] = tsCell("AUTISMO IN CORSA","s",{ fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(20,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["F1"] = tsCell("PROGETTO FILIPPIDE","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["A4"] = tsCell("data inizio","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["B4"] = tsCell("data fine","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["A5"] = tsCell(startDate,"d",{ font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" });
+  ws["B5"] = tsCell(endDate,"d",{ font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" });
+  ws["E7"] = tsCell("collaboratore sportivo","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["A9"] = tsCell(".","s",{ font:tsFont(12), border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["E9"] = tsCell("Teacher/Trainer/Reseacher/Youth worker","s",{ font:tsFont(10,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["E10"] = tsCell(record.employeeName||"","s",{ fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["A11"] = tsCell("Data","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["B11"] = tsCell("ore","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["C11"] = tsCell("compenso ora","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["D11"] = tsCell("Totale","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
 
-  // firma
-  set("A25", tsCell("FIRMA", "s", { font:tsFont(16,true), alignment:{horizontal:"center"}, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) }));
-  set("A26", tsCell(record.signature||"", "s", { font:tsFont(14), alignment:{horizontal:"center",vertical:"center"}, border:tsBorder(TS_MED,TS_MED,null,TS_MED) }));
-  set("A27", tsCell("", "s", { border:tsBorder(null,TS_MED,TS_MED,TS_MED) }));
+  const log = record.dailyHoursLog || {};
+  const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,10);
+  days.forEach((day,i)=>{
+    const r = 12+i;
+    const hours = log[day];
+    const total = +(hours*(record.rate||0)).toFixed(2);
+    const top = i===0 ? TS_MED : TS_THIN, bottom = i===9 ? TS_MED : TS_THIN;
+    ws["A"+r] = tsCell(new Date(y,m-1,day), "d", { font:tsFont(12), alignment:{horizontal:"left",vertical:"center"}, border:tsBorder(top,bottom,TS_MED,TS_THIN), numFmt:"d/m/yyyy" });
+    ws["B"+r] = tsCell(hours, "n", { font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_THIN) });
+    ws["C"+r] = tsCell(record.rate||0, "n", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_THIN), numFmt:"0.00" });
+    ws["D"+r] = tsCell(total, "n", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_MED), numFmt:"0.00" });
+  });
+
+  ws["A23"] = tsCell("TOTALE","s",{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null) });
+  ws["B23"] = { t:"n", f:"SUM(B12:B21)", s:{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null) } };
+  ws["D23"] = { t:"n", f:"SUM(D12:D21)", s:{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null), numFmt:"0.00" } };
+  ws["A25"] = tsCell("FIRMA","s",{ font:tsFont(16,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  ws["A26"] = tsCell(record.signature||"","s",{ font:tsFont(14), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
 
   ws["!merges"] = [
-    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}},
-    {s:{r:3,c:1},e:{r:3,c:2}},
+    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}}, {s:{r:1,c:5},e:{r:1,c:6}},
+    {s:{r:3,c:1},e:{r:3,c:2}}, {s:{r:4,c:1},e:{r:4,c:2}},
     {s:{r:6,c:0},e:{r:7,c:0}}, {s:{r:6,c:1},e:{r:7,c:3}}, {s:{r:6,c:4},e:{r:7,c:5}}, {s:{r:6,c:6},e:{r:7,c:6}},
     {s:{r:8,c:1},e:{r:8,c:3}}, {s:{r:8,c:4},e:{r:8,c:5}},
     {s:{r:9,c:1},e:{r:9,c:3}}, {s:{r:9,c:4},e:{r:9,c:5}},
-    {s:{r:10,c:4},e:{r:10,c:6}}, {s:{r:21,c:4},e:{r:21,c:6}},
     {s:{r:24,c:0},e:{r:24,c:3}}, {s:{r:25,c:0},e:{r:25,c:3}}, {s:{r:26,c:0},e:{r:26,c:3}}
   ];
   ws["!cols"] = [{wch:17},{wch:11},{wch:16},{wch:12},{wch:23},{wch:15},{wch:19}];
-  ws["!rows"] = [{hpt:45},{hpt:33},{hpt:17},{hpt:17},{hpt:17},{hpt:17},null,{hpt:17},{hpt:17},{hpt:26}];
   ws["!ref"] = "A1:G27";
 
   const wb = XLSX.utils.book_new();
