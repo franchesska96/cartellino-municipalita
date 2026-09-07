@@ -629,19 +629,21 @@ function renderArchiveOwner(){
           <span class="pill ${allConfirmed?'pill-success':'pill-warn'}">${allConfirmed?"Tutti confermato":"In attesa di conferme"}</span>
         </div>
         ${rows.map(r=>`
-          <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">
-            <span>${r.employeeName}</span>
-            <span style="display:flex; align-items:center; gap:8px;">
-              <span style="color:var(--muted);">${fmtOre(r.hours)}</span>
-              <span style="font-family:var(--font-mono); font-weight:600;">${fmtEuro(r.cost)}</span>
-              ${r.confirmed ? `<span class="pill pill-success">${iconSvg('check',10)}</span>` : `<span class="pill pill-warn">in attesa</span>`}
-              <button class="iconbtn" data-action="download-timesheet" data-id="${r.id}">${iconSvg('pdf',12)}</button>
-            </span>
+          <div style="padding:10px 0; border-bottom:1px solid var(--line);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="font-weight:600; font-size:14px;">${r.employeeName}</span>
+              <span style="display:flex; align-items:center; gap:8px;">
+                <span style="color:var(--muted); font-size:13px;">${fmtOre(r.hours)}</span>
+                <span style="font-family:var(--font-mono); font-weight:600; font-size:13px;">${fmtEuro(r.cost)}</span>
+                ${r.confirmed ? `<span class="pill pill-success">${iconSvg('check',10)} firmato</span>` : `<span class="pill pill-warn">in attesa</span>`}
+              </span>
+            </div>
+            <button data-action="download-timesheet" data-id="${r.id}" style="width:100%; height:36px; font-weight:600; font-size:13px;">${iconSvg('pdf',13)} Scarica timesheet di ${r.employeeName}</button>
           </div>`).join("")}
         <div style="display:flex; justify-content:space-between; padding:10px 0 4px; font-weight:600;">
           <span>Totale</span><span style="font-family:var(--font-mono);">${fmtEuro(total)}</span>
         </div>
-        <button data-action="download-archive" data-month="${mk}" style="width:100%; height:38px; font-weight:600; font-size:13px; margin-top:8px;">${iconSvg('pdf',14)} Scarica riepilogo Excel</button>
+        <button data-action="download-archive" data-month="${mk}" style="width:100%; height:38px; font-weight:600; font-size:13px; margin-top:8px;">${iconSvg('pdf',14)} Scarica riepilogo complessivo Excel</button>
       </div>`;
     }).join("")}
   </div>`;
