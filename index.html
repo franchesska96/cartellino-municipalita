@@ -6,7 +6,8 @@
 <title>Cartellino — Presenze e paghe</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
     --ink:#1c2233; --ink-soft:#4a5064;
@@ -646,143 +647,81 @@ function renderArchiveOwner(){
   </div>`;
 }
 
-const TS_BLUE = "B8CCE4";
-const TS_LIGHTBLUE = "DAEEF3";
-const TS_MED = "medium", TS_THIN = "thin";
-function tsBorder(top,bottom,left,right){
-  const b = {};
-  if(top) b.top = { style: top };
-  if(bottom) b.bottom = { style: bottom };
-  if(left) b.left = { style: left };
-  if(right) b.right = { style: right };
-  return b;
+function excelSerial(date){
+  const epoch = Date.UTC(1899,11,30);
+  return Math.round((Date.UTC(date.getFullYear(),date.getMonth(),date.getDate()) - epoch) / 86400000);
 }
-function tsFont(size, bold){ return { name:"Arial", sz:size||12, bold: !!bold }; }
-function tsCell(value, type, style){
-  return Object.assign({ v: value===undefined?"":value, t: type||"s" }, style ? { s: style } : {});
+function xmlEscape(str){
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
 }
-// applica un bordo "a scatola" completo su un blocco rettangolare di celle (necessario perché
-// Excel richiede il bordo definito su ogni singola cella del blocco, non solo su quella in alto a sinistra)
-function tsBox(ws, r1,c1,r2,c2, extraStyle){
-  const cols = "ABCDEFG";
-  for(let r=r1;r<=r2;r++){
-    for(let c=c1;c<=c2;c++){
-      const top = r===r1 ? TS_MED : null;
-      const bottom = r===r2 ? TS_MED : null;
-      const left = c===c1 ? TS_MED : null;
-      const right = c===c2 ? TS_MED : null;
-      const addr = cols[c]+(r+1);
-      const style = Object.assign({}, extraStyle, { border: tsBorder(top,bottom,left,right) });
-      ws[addr] = { t:"s", v:"", s: style };
-    }
-  }
+function xmlPatchCell(xml, addr, build){
+  const re = new RegExp('<c r="'+addr+'"([^>]*?)(?:/>|>[\\s\\S]*?</c>)');
+  return xml.replace(re, (match, attrs) => {
+    const sMatch = attrs.match(/s="(\\d+)"/);
+    const s = sMatch ? sMatch[1] : null;
+    return build(s);
+  });
+}
+let timesheetTemplateCache = null;
+async function loadTimesheetTemplateZip(){
+  if(timesheetTemplateCache) return timesheetTemplateCache;
+  const resp = await fetch("timesheet_template.xlsx");
+  if(!resp.ok) throw new Error("Modello non trovato");
+  const buf = await resp.arrayBuffer();
+  timesheetTemplateCache = await JSZip.loadAsync(buf);
+  return timesheetTemplateCache;
 }
 
-function buildTimesheetWorkbook(record){
-  if(!window.XLSX){ showToast("Impossibile generare il file Excel in questo momento."); return null; }
+async function downloadTimesheet(record){
+  if(!window.JSZip){ showToast("Impossibile generare il file Excel in questo momento."); return; }
+  let zip;
+  try{ zip = await loadTimesheetTemplateZip(); }
+  catch(e){ showToast("Impossibile trovare il modello timesheet_template.xlsx sul sito."); return; }
+
   const [y,m] = record.monthKey.split("-").map(Number);
   const startDate = new Date(y, m-1, 1);
   const endDate = new Date(y, m, 0);
-  const centerC = { horizontal:"center", vertical:"center" };
-  const centerCWrap = { horizontal:"center", vertical:"center", wrapText:true };
-  const ws = {};
 
-  // scatole vuote (bordo + sfondo), poi sovrascrivo i valori sopra
-  tsBox(ws, 0,0,1,2, { fill:{fgColor:{rgb:TS_BLUE}} });                              // A1:C2
-  tsBox(ws, 0,3,1,4, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // D1:E2
-  tsBox(ws, 0,5,0,6, { fill:{fgColor:{rgb:TS_BLUE}} });                               // F1:G1
-  tsBox(ws, 1,5,1,6, {});                                                             // F2:G2
-  tsBox(ws, 3,0,3,0, { fill:{fgColor:{rgb:TS_BLUE}} });                               // A4
-  tsBox(ws, 3,1,3,2, { fill:{fgColor:{rgb:TS_BLUE}} });                               // B4:C4
-  tsBox(ws, 4,0,4,0, {});                                                             // A5
-  tsBox(ws, 4,1,4,2, {});                                                             // B5:C5
-  tsBox(ws, 6,0,7,0, { fill:{fgColor:{rgb:TS_BLUE}} });                               // A7:A8
-  tsBox(ws, 6,1,7,3, { fill:{fgColor:{rgb:TS_BLUE}} });                               // B7:D8
-  tsBox(ws, 6,4,7,5, { fill:{fgColor:{rgb:TS_BLUE}} });                               // E7:F8
-  tsBox(ws, 6,6,7,6, { fill:{fgColor:{rgb:TS_BLUE}} });                               // G7:G8
-  tsBox(ws, 8,0,8,0, {});                                                             // A9
-  tsBox(ws, 8,1,8,3, {});                                                             // B9:D9
-  tsBox(ws, 8,4,8,5, {});                                                             // E9:F9
-  tsBox(ws, 9,0,9,0, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // A10
-  tsBox(ws, 9,1,9,3, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // B10:D10
-  tsBox(ws, 9,4,9,5, { fill:{fgColor:{rgb:TS_LIGHTBLUE}} });                          // E10:F10
-  tsBox(ws, 10,0,10,0, { fill:{fgColor:{rgb:TS_BLUE}} });                             // A11
-  tsBox(ws, 10,1,10,1, { fill:{fgColor:{rgb:TS_BLUE}} });                             // B11
-  tsBox(ws, 10,2,10,2, { fill:{fgColor:{rgb:TS_BLUE}} });                             // C11
-  tsBox(ws, 10,3,10,3, { fill:{fgColor:{rgb:TS_BLUE}} });                             // D11
-  tsBox(ws, 24,0,24,3, {});                                                           // A25:D25
-  tsBox(ws, 25,0,25,3, {});                                                           // A26:D26
-  tsBox(ws, 26,0,26,3, {});                                                           // A27:D27
+  let xml = await zip.file("xl/worksheets/sheet1.xml").async("string");
 
-  // tabella ore (righe 12-21, colonne A-D): griglia sottile con perimetro esterno marcato
-  for(let r=11; r<=20; r++){
-    for(let c=0; c<=3; c++){
-      const top = r===11 ? TS_MED : TS_THIN;
-      const bottom = r===20 ? TS_MED : TS_THIN;
-      const left = c===0 ? TS_MED : TS_THIN;
-      const right = c===3 ? TS_MED : TS_THIN;
-      const cols = "ABCDEFG";
-      const addr = cols[c]+(r+1);
-      const fill = (c===2||c===3) ? { fill:{fgColor:{rgb:TS_LIGHTBLUE}} } : {};
-      ws[addr] = Object.assign({ t:"s", v:"" }, { s: Object.assign({}, fill, { font:tsFont(12), border:tsBorder(top,bottom,left,right) }) });
-    }
-  }
-
-  // contenuti
-  ws["D1"] = tsCell("AUTISMO IN CORSA","s",{ fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(20,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["F1"] = tsCell("PROGETTO FILIPPIDE","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["A4"] = tsCell("data inizio","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["B4"] = tsCell("data fine","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["A5"] = tsCell(startDate,"d",{ font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" });
-  ws["B5"] = tsCell(endDate,"d",{ font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED), numFmt:"d/m/yyyy" });
-  ws["E7"] = tsCell("collaboratore sportivo","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerCWrap, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["A9"] = tsCell(".","s",{ font:tsFont(12), border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["E9"] = tsCell("Teacher/Trainer/Reseacher/Youth worker","s",{ font:tsFont(10,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["E10"] = tsCell(record.employeeName||"","s",{ fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["A11"] = tsCell("Data","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["B11"] = tsCell("ore","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["C11"] = tsCell("compenso ora","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["D11"] = tsCell("Totale","s",{ fill:{fgColor:{rgb:TS_BLUE}}, font:tsFont(12,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  xml = xmlPatchCell(xml, "A4", s => `<c r="A4"${s?` s="${s}"`:""}><v>${excelSerial(startDate)}</v></c>`);
+  xml = xmlPatchCell(xml, "B4", s => `<c r="B4"${s?` s="${s}"`:""}><v>${excelSerial(endDate)}</v></c>`);
+  xml = xmlPatchCell(xml, "A6", s => `<c r="A6"${s?` s="${s}"`:""} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(record.employeeName||"")}</t></is></c>`);
+  xml = xmlPatchCell(xml, "A23", s => `<c r="A23"${s?` s="${s}"`:""} t="inlineStr"><is><t xml:space="preserve">${xmlEscape(record.signature||"")}</t></is></c>`);
 
   const log = record.dailyHoursLog || {};
-  const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,10);
+  const days = Object.keys(log).map(Number).sort((a,b)=>a-b).slice(0,11);
   days.forEach((day,i)=>{
-    const r = 12+i;
+    const r = 9+i;
     const hours = log[day];
     const total = +(hours*(record.rate||0)).toFixed(2);
-    const top = i===0 ? TS_MED : TS_THIN, bottom = i===9 ? TS_MED : TS_THIN;
-    ws["A"+r] = tsCell(new Date(y,m-1,day), "d", { font:tsFont(12), alignment:{horizontal:"left",vertical:"center"}, border:tsBorder(top,bottom,TS_MED,TS_THIN), numFmt:"d/m/yyyy" });
-    ws["B"+r] = tsCell(hours, "n", { font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_THIN) });
-    ws["C"+r] = tsCell(record.rate||0, "n", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_THIN), numFmt:"0.00" });
-    ws["D"+r] = tsCell(total, "n", { fill:{fgColor:{rgb:TS_LIGHTBLUE}}, font:tsFont(12), border:tsBorder(top,bottom,TS_THIN,TS_MED), numFmt:"0.00" });
+    xml = xmlPatchCell(xml, "A"+r, s => `<c r="A${r}"${s?` s="${s}"`:""}><v>${excelSerial(new Date(y,m-1,day))}</v></c>`);
+    xml = xmlPatchCell(xml, "B"+r, s => `<c r="B${r}"${s?` s="${s}"`:""}><v>${hours}</v></c>`);
+    xml = xmlPatchCell(xml, "C"+r, s => `<c r="C${r}"${s?` s="${s}"`:""}><v>${record.rate||0}</v></c>`);
+    xml = xmlPatchCell(xml, "D"+r, s => `<c r="D${r}"${s?` s="${s}"`:""}><v>${total}</v></c>`);
   });
 
-  ws["A23"] = tsCell("TOTALE","s",{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null) });
-  ws["B23"] = { t:"n", f:"SUM(B12:B21)", s:{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null) } };
-  ws["D23"] = { t:"n", f:"SUM(D12:D21)", s:{ font:tsFont(12,true), border:tsBorder(TS_MED,null,null,null), numFmt:"0.00" } };
-  ws["A25"] = tsCell("FIRMA","s",{ font:tsFont(16,true), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
-  ws["A26"] = tsCell(record.signature||"","s",{ font:tsFont(14), alignment:centerC, border:tsBorder(TS_MED,TS_MED,TS_MED,TS_MED) });
+  zip.file("xl/worksheets/sheet1.xml", xml);
 
-  ws["!merges"] = [
-    {s:{r:0,c:0},e:{r:1,c:2}}, {s:{r:0,c:3},e:{r:1,c:4}}, {s:{r:0,c:5},e:{r:0,c:6}}, {s:{r:1,c:5},e:{r:1,c:6}},
-    {s:{r:3,c:1},e:{r:3,c:2}}, {s:{r:4,c:1},e:{r:4,c:2}},
-    {s:{r:6,c:0},e:{r:7,c:0}}, {s:{r:6,c:1},e:{r:7,c:3}}, {s:{r:6,c:4},e:{r:7,c:5}}, {s:{r:6,c:6},e:{r:7,c:6}},
-    {s:{r:8,c:1},e:{r:8,c:3}}, {s:{r:8,c:4},e:{r:8,c:5}},
-    {s:{r:9,c:1},e:{r:9,c:3}}, {s:{r:9,c:4},e:{r:9,c:5}},
-    {s:{r:24,c:0},e:{r:24,c:3}}, {s:{r:25,c:0},e:{r:25,c:3}}, {s:{r:26,c:0},e:{r:26,c:3}}
-  ];
-  ws["!cols"] = [{wch:17},{wch:11},{wch:16},{wch:12},{wch:23},{wch:15},{wch:19}];
-  ws["!ref"] = "A1:G27";
+  // forza il ricalcolo delle formule (SUM) all'apertura, dato che aggiungiamo dati a celle prima vuote
+  zip.remove("xl/calcChain.xml");
+  let ctypes = await zip.file("[Content_Types].xml").async("string");
+  ctypes = ctypes.replace(/<Override[^>]*calcChain\.xml[^>]*\/>/, "");
+  zip.file("[Content_Types].xml", ctypes);
+  let rels = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+  rels = rels.replace(/<Relationship[^>]*calcChain\.xml[^>]*\/>/, "");
+  zip.file("xl/_rels/workbook.xml.rels", rels);
+  let wbxml = await zip.file("xl/workbook.xml").async("string");
+  wbxml = wbxml.replace(/<calcPr([^>]*)\/>/, (m,attrs)=> attrs.includes("fullCalcOnLoad") ? m : `<calcPr${attrs} fullCalcOnLoad="1"/>`);
+  zip.file("xl/workbook.xml", wbxml);
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Timesheet");
-  return wb;
-}
-function downloadTimesheet(record){
-  const wb = buildTimesheetWorkbook(record);
-  if(!wb) return;
+  const blob = await zip.generateAsync({ type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
   const safeName = (record.employeeName||"dipendente").replace(/[^\p{L}\p{N}]+/gu,"_");
-  XLSX.writeFile(wb, "timesheet_" + safeName + "_" + record.monthKey + ".xlsx");
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "timesheet_" + safeName + "_" + record.monthKey + ".xlsx";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
 
 function exportArchiveMonthExcel(monthKey){
