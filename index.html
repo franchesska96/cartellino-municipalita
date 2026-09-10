@@ -667,7 +667,7 @@ function xmlPatchCell(xml, addr, build){
 let timesheetTemplateCache = null;
 async function loadTimesheetTemplateZip(){
   if(timesheetTemplateCache) return timesheetTemplateCache;
-  const resp = await fetch("timesheet_template.xlsx");
+  const resp = await fetch("timesheet_template.xlsx?v=" + Date.now(), { cache: "no-store" });
   if(!resp.ok) throw new Error("Modello non trovato");
   const buf = await resp.arrayBuffer();
   timesheetTemplateCache = await JSZip.loadAsync(buf);
