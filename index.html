@@ -664,14 +664,11 @@ function xmlPatchCell(xml, addr, build){
     return build(s);
   });
 }
-let timesheetTemplateCache = null;
 async function loadTimesheetTemplateZip(){
-  if(timesheetTemplateCache) return timesheetTemplateCache;
   const resp = await fetch("timesheet_template.xlsx?v=" + Date.now(), { cache: "no-store" });
   if(!resp.ok) throw new Error("Modello non trovato");
   const buf = await resp.arrayBuffer();
-  timesheetTemplateCache = await JSZip.loadAsync(buf);
-  return timesheetTemplateCache;
+  return await JSZip.loadAsync(buf);
 }
 
 async function downloadTimesheet(record){
